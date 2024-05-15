@@ -1,0 +1,18 @@
+localaddr = ":8761"
+resolveraddr = "[::1]:7777"
+resolvertimeout = "10m"
+resolvernotfoundtimeout = "10s"
+externaladdr = "https://localhost:8761"
+loglevel = "DEBUG"
+
+[grpcclient]
+mediaserverdb = "localhost:7653"
+
+[webtls]
+type = "dev"
+
+[server]
+type = "dev"
+
+[client]
+type = "dev"
