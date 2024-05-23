@@ -7,6 +7,8 @@ import (
 	genericproto "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaservermain/v2/config"
 	"github.com/je4/mediaservermain/v2/pkg/web"
+	mediaserveractionClient "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/client"
+	mediaserveractionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	mediaserverdbClient "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/client"
 	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 	miniresolverClient "github.com/je4/miniresolver/v2/pkg/client"
@@ -90,13 +92,19 @@ func main() {
 	*/
 
 	var dbClientAddr string
+	var actionControllerClientAddr string
 	if conf.ResolverAddr != "" {
 		dbClientAddr = grpchelper.GetAddress(mediaserverdbproto.DBController_Ping_FullMethodName)
+		actionControllerClientAddr = grpchelper.GetAddress(mediaserveractionproto.ActionController_Ping_FullMethodName)
 	} else {
 		if _, ok := conf.GRPCClient["mediaserverdb"]; !ok {
 			logger.Fatal().Msg("no mediaserverdb grpc client defined")
 		}
 		dbClientAddr = conf.GRPCClient["mediaserverdb"]
+		if _, ok := conf.GRPCClient["mediaserveractioncontroller"]; !ok {
+			logger.Fatal().Msg("no mediaserveractioncontroller grpc client defined")
+		}
+		actionControllerClientAddr = conf.GRPCClient["mediaserveractioncontroller"]
 	}
 
 	clientCert, clientLoader, err := loader.CreateClientLoader(conf.ClientTLS, logger)
@@ -129,7 +137,23 @@ func main() {
 			logger.Info().Msgf("mediaserverdb ping response: %s", resp.GetMessage())
 		}
 	}
-	ctrl, err := web.NewController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, dbClient, logger)
+
+	actionControllerClient, actionControllerClientCloser, err := mediaserveractionClient.CreateControllerClient(actionControllerClientAddr, clientCert)
+	if err != nil {
+		logger.Panic().Msgf("cannot create mediaserveractioncontroller grpc client: %v", err)
+	}
+	defer actionControllerClientCloser.Close()
+	if resp, err := actionControllerClient.Ping(context.Background(), &emptypb.Empty{}); err != nil {
+		logger.Error().Msgf("cannot ping mediaserveractioncontroller: %v", err)
+	} else {
+		if resp.GetStatus() != genericproto.ResultStatus_OK {
+			logger.Error().Msgf("cannot ping mediaserveractioncontroller: %v", resp.GetStatus())
+		} else {
+			logger.Info().Msgf("mediaserveractioncontroller ping response: %s", resp.GetMessage())
+		}
+	}
+
+	ctrl, err := web.NewController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, dbClient, actionControllerClient, logger)
 	if err != nil {
 		logger.Fatal().Msgf("cannot create controller: %v", err)
 	}
@@ -144,5 +168,4 @@ func main() {
 
 	ctrl.GracefulStop()
 	wg.Wait()
-
 }
