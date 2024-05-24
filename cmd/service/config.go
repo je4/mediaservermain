@@ -3,6 +3,7 @@ package main
 import (
 	"emperror.dev/errors"
 	"github.com/BurntSushi/toml"
+	"github.com/je4/filesystem/v2/pkg/vfsrw"
 	"github.com/je4/trustutil/v2/pkg/loader"
 	"github.com/je4/utils/v2/pkg/config"
 	"io/fs"
@@ -10,17 +11,18 @@ import (
 )
 
 type MediaserverMainConfig struct {
-	LocalAddr               string            `toml:"localaddr"`
-	ExternalAddr            string            `toml:"externaladdr"`
-	ResolverAddr            string            `toml:"resolveraddr"`
-	ResolverTimeout         config.Duration   `toml:"resolvertimeout"`
-	ResolverNotFoundTimeout config.Duration   `toml:"resolvernotfoundtimeout"`
-	WebTLS                  loader.TLSConfig  `toml:"webtls"`
-	ServerTLS               *loader.TLSConfig `toml:"server"`
-	ClientTLS               *loader.TLSConfig `toml:"client"`
-	LogFile                 string            `toml:"logfile"`
-	LogLevel                string            `toml:"loglevel"`
-	GRPCClient              map[string]string `toml:"grpcclient"`
+	LocalAddr               string                `toml:"localaddr"`
+	ExternalAddr            string                `toml:"externaladdr"`
+	ResolverAddr            string                `toml:"resolveraddr"`
+	ResolverTimeout         config.Duration       `toml:"resolvertimeout"`
+	ResolverNotFoundTimeout config.Duration       `toml:"resolvernotfoundtimeout"`
+	WebTLS                  loader.TLSConfig      `toml:"webtls"`
+	ServerTLS               *loader.TLSConfig     `toml:"server"`
+	ClientTLS               *loader.TLSConfig     `toml:"client"`
+	LogFile                 string                `toml:"logfile"`
+	LogLevel                string                `toml:"loglevel"`
+	GRPCClient              map[string]string     `toml:"grpcclient"`
+	VFS                     map[string]*vfsrw.VFS `toml:"vfs"`
 }
 
 func LoadMediaserverMainConfig(fSys fs.FS, fp string, conf *MediaserverMainConfig) error {

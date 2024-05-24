@@ -7,23 +7,35 @@ import (
 	"fmt"
 	"github.com/bluele/gcache"
 	"github.com/gin-gonic/gin"
+	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
 	mediaserveractionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
 	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"io/fs"
 	"net/http"
 	"net/url"
+	"regexp"
+	"slices"
 	"strings"
 	"sync"
 	"time"
 )
 
-func NewController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediaserverdbproto.DBControllerClient, actionControllerClient mediaserveractionproto.ActionControllerClient, logger zLogger.ZLogger) (*controller, error) {
+type itemIdentifier struct {
+	collection string
+	signature  string
+}
+
+func NewController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediaserverdbproto.DBControllerClient, actionControllerClient mediaserveractionproto.ActionControllerClient, vfs fs.FS, itemCacheSize int, itemCacheTimout time.Duration, logger zLogger.ZLogger) (*controller, error) {
 	u, err := url.Parse(extAddr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "invalid external address '%s'", extAddr)
 	}
 	subpath := "/" + strings.Trim(u.Path, "/")
 
+	gin.SetMode(gin.DebugMode)
 	router := gin.Default()
 
 	c := &controller{
@@ -34,10 +46,22 @@ func NewController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediase
 		dbClient:               dbClient,
 		actionControllerClient: actionControllerClient,
 		actionParams:           map[string][]string{},
-		itemCache: gcache.New(200).
-			LRU().Expiration(10 * time.Minute).
+		vfs:                    vfs,
+		itemCache: gcache.New(itemCacheSize).
+			LRU().Expiration(itemCacheTimout).
 			LoaderFunc(func(key any) (any, error) {
-
+				it, ok := key.(itemIdentifier)
+				if !ok {
+					return nil, errors.Errorf("invalid key type %T", key)
+				}
+				resp, err := dbClient.GetItem(context.Background(), &mediaserverdbproto.ItemIdentifier{
+					Collection: it.collection,
+					Signature:  it.signature,
+				})
+				if err != nil {
+					return nil, errors.Wrapf(err, "cannot get item %s/%s", it.collection, it.signature)
+				}
+				return resp, nil
 			}).
 			Build(),
 	}
@@ -57,6 +81,7 @@ type controller struct {
 	actionControllerClient mediaserveractionproto.ActionControllerClient
 	actionParams           map[string][]string
 	itemCache              gcache.Cache
+	vfs                    fs.FS
 }
 
 func (ctrl *controller) getParams(mediaType string, action string) ([]string, error) {
@@ -124,17 +149,121 @@ func (ctrl *controller) GracefulStop() {
 	ctrl.server.Shutdown(context.Background())
 }
 
+var isUrlRegexp = regexp.MustCompile(`^[a-z]+://`)
+
 func (ctrl *controller) action(c *gin.Context) {
 	collection := c.Param("collection")
 	signature := c.Param("signature")
 	action := c.Param("action")
 	paramStr := c.Param("params")
-	ctrl.logger.Debug().Msgf("collection: %s, signature: %s, action: %s, params: %s", collection, signature, action, params)
-	params := strings.Split(paramStr, "/")
-	c.JSON(200, gin.H{
-		"collection": collection,
-		"signature":  signature,
-		"action":     action,
-		"params":     params,
+	ctrl.logger.Debug().Msgf("collection: %s, signature: %s, action: %s, params: %s", collection, signature, action, paramStr)
+	itemAny, err := ctrl.itemCache.Get(itemIdentifier{collection: collection, signature: signature})
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot get item %s/%s", collection, signature)
+		c.JSON(http.StatusNotFound, gin.H{
+			"error": fmt.Sprintf("cannot get item %s/%s: %v", collection, signature, err),
+		})
+		return
+	}
+	item, ok := itemAny.(*mediaserverdbproto.Item)
+	if !ok {
+		ctrl.logger.Error().Msgf("invalid item type %T", itemAny)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("invalid item type %T", itemAny),
+		})
+		return
+	}
+	var params = actionCache.ActionParams{}
+	if !slices.Contains([]string{"item", "master"}, action) {
+		allowedParams, err := ctrl.getParams(item.GetMetadata().GetType(), action)
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot get params for %s::%s", item.GetMetadata().GetType(), action)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get params for %s::%s: %v", item.GetMetadata().GetType(), action, err),
+			})
+			return
+		}
+		params.SetString(paramStr, allowedParams)
+	}
+
+	cache, err := ctrl.dbClient.GetCache(context.Background(), &mediaserverdbproto.CacheRequest{
+		Identifier: &mediaserverdbproto.ItemIdentifier{
+			Collection: collection,
+			Signature:  signature,
+		},
+		Action: action,
+		Params: params.String(),
 	})
+	if err == nil {
+		//todo: load it and send it out...
+		metadata := cache.GetMetadata()
+		path := metadata.GetPath()
+		if !isUrlRegexp.MatchString(path) {
+			storageName := metadata.GetStorageName()
+			stor, err := ctrl.dbClient.GetStorage(context.Background(), &mediaserverdbproto.StorageIdentifier{
+				Name: storageName,
+			})
+			if err != nil {
+				ctrl.logger.Error().Err(err).Msgf("cannot get storage %s", storageName)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": fmt.Sprintf("cannot get storage %s: %v", storageName, err),
+				})
+				return
+			}
+			path = stor.GetFilebase() + "/" + path
+		}
+		c.Header("Content-Type", metadata.GetMimeType())
+		c.FileFromFS(path, http.FS(ctrl.vfs))
+		return
+	}
+	status, ok := status.FromError(err)
+	if !ok || status.Code() != codes.NotFound {
+		ctrl.logger.Error().Err(err).Msgf("cannot get cache for %s/%s/%s", collection, signature, action)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot get cache for %s/%s/%s: %v", collection, signature, action, err),
+		})
+		return
+	}
+	// cache not found, create it
+	actionResp, err := ctrl.actionControllerClient.Action(context.Background(), &mediaserveractionproto.ActionParam{
+		Item: &mediaserverdbproto.ItemIdentifier{
+			Collection: collection,
+			Signature:  signature,
+		},
+		Action: action,
+		Params: params,
+	})
+	if resp := actionResp.GetResponse(); resp != nil {
+		ctrl.logger.Error().Msgf("cannot get cache for %s/%s/%s: %s-%s", collection, signature, action, resp.GetStatus().String(), resp.GetMessage())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot get cache for %s/%s/%s: %s-%s", collection, signature, action, resp.GetStatus().String(), resp.GetMessage()),
+		})
+		return
+	}
+	cache = actionResp.GetCache()
+	if cache == nil {
+		ctrl.logger.Error().Msgf("cannot get cache for %s/%s/%s: no cache", collection, signature, action)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot get cache for %s/%s/%s: no cache", collection, signature, action),
+		})
+		return
+	}
+	metadata := cache.GetMetadata()
+	path := metadata.GetPath()
+	if !isUrlRegexp.MatchString(path) {
+		storageName := metadata.GetStorageName()
+		stor, err := ctrl.dbClient.GetStorage(context.Background(), &mediaserverdbproto.StorageIdentifier{
+			Name: storageName,
+		})
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot get storage %s", storageName)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get storage %s: %v", storageName, err),
+			})
+			return
+		}
+		path = stor.GetFilebase() + "/" + path
+	}
+	c.Header("Content-Type", metadata.GetMimeType())
+	c.FileFromFS(path, http.FS(ctrl.vfs))
 }

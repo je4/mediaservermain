@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/je4/filesystem/v2/pkg/vfsrw"
 	genericproto "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaservermain/v2/config"
 	"github.com/je4/mediaservermain/v2/pkg/web"
@@ -76,6 +77,16 @@ func main() {
 	_logger := zerolog.New(output).With().Timestamp().Logger()
 	_logger.Level(zLogger.LogLevel(conf.LogLevel))
 	var logger zLogger.ZLogger = &_logger
+
+	vfs, err := vfsrw.NewFS(conf.VFS, zLogger.NewZWrapper(logger))
+	if err != nil {
+		logger.Panic().Err(err).Msg("cannot create vfs")
+	}
+	defer func() {
+		if err := vfs.Close(); err != nil {
+			logger.Error().Err(err).Msg("cannot close vfs")
+		}
+	}()
 
 	webTLSConfig, webLoader, err := loader.CreateServerLoader(false, &conf.WebTLS, nil, logger)
 	if err != nil {
@@ -153,7 +164,7 @@ func main() {
 		}
 	}
 
-	ctrl, err := web.NewController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, dbClient, actionControllerClient, logger)
+	ctrl, err := web.NewController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, dbClient, actionControllerClient, vfs, 200, 10*time.Minute, logger)
 	if err != nil {
 		logger.Fatal().Msgf("cannot create controller: %v", err)
 	}
