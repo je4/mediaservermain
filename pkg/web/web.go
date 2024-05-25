@@ -197,19 +197,19 @@ func (ctrl *controller) action(c *gin.Context) {
 	if err == nil {
 		//todo: load it and send it out...
 		metadata := cache.GetMetadata()
+		storageName := metadata.GetStorageName()
+		stor, err := ctrl.dbClient.GetStorage(context.Background(), &mediaserverdbproto.StorageIdentifier{
+			Name: storageName,
+		})
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot get storage %s", storageName)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get storage %s: %v", storageName, err),
+			})
+			return
+		}
 		path := metadata.GetPath()
 		if !isUrlRegexp.MatchString(path) {
-			storageName := metadata.GetStorageName()
-			stor, err := ctrl.dbClient.GetStorage(context.Background(), &mediaserverdbproto.StorageIdentifier{
-				Name: storageName,
-			})
-			if err != nil {
-				ctrl.logger.Error().Err(err).Msgf("cannot get storage %s", storageName)
-				c.JSON(http.StatusInternalServerError, gin.H{
-					"error": fmt.Sprintf("cannot get storage %s: %v", storageName, err),
-				})
-				return
-			}
 			path = stor.GetFilebase() + "/" + path
 		}
 		c.Header("Content-Type", metadata.GetMimeType())
@@ -224,23 +224,31 @@ func (ctrl *controller) action(c *gin.Context) {
 		})
 		return
 	}
-	// cache not found, create it
-	actionResp, err := ctrl.actionControllerClient.Action(context.Background(), &mediaserveractionproto.ActionParam{
-		Item: &mediaserverdbproto.ItemIdentifier{
-			Collection: collection,
-			Signature:  signature,
-		},
-		Action: action,
-		Params: params,
+	coll, err := ctrl.dbClient.GetCollection(context.Background(), &mediaserverdbproto.CollectionIdentifier{
+		Collection: collection,
 	})
-	if resp := actionResp.GetResponse(); resp != nil {
-		ctrl.logger.Error().Msgf("cannot get cache for %s/%s/%s: %s-%s", collection, signature, action, resp.GetStatus().String(), resp.GetMessage())
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot get collection %s", collection)
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": fmt.Sprintf("cannot get cache for %s/%s/%s: %s-%s", collection, signature, action, resp.GetStatus().String(), resp.GetMessage()),
+			"error": fmt.Sprintf("cannot get collection %s: %v", collection, err),
 		})
 		return
 	}
-	cache = actionResp.GetCache()
+
+	// cache not found, create it
+	cache, err = ctrl.actionControllerClient.Action(context.Background(), &mediaserveractionproto.ActionParam{
+		Item:    item,
+		Action:  action,
+		Params:  params,
+		Storage: coll.GetStorage(),
+	})
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot get cache for %s/%s/%s: %v", collection, signature, action, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot get cache for %s/%s/%s: %v", collection, signature, action, err),
+		})
+		return
+	}
 	if cache == nil {
 		ctrl.logger.Error().Msgf("cannot get cache for %s/%s/%s: no cache", collection, signature, action)
 		c.JSON(http.StatusInternalServerError, gin.H{
