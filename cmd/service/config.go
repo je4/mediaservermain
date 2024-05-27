@@ -3,7 +3,7 @@ package main
 import (
 	"emperror.dev/errors"
 	"github.com/BurntSushi/toml"
-	"github.com/je4/filesystem/v2/pkg/vfsrw"
+	"github.com/je4/filesystem/v3/pkg/vfsrw"
 	"github.com/je4/trustutil/v2/pkg/loader"
 	"github.com/je4/utils/v2/pkg/config"
 	"io/fs"

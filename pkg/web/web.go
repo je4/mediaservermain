@@ -28,7 +28,7 @@ type itemIdentifier struct {
 	signature  string
 }
 
-func NewController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediaserverdbproto.DBControllerClient, actionControllerClient mediaserveractionproto.ActionControllerClient, vfs fs.FS, itemCacheSize int, itemCacheTimout time.Duration, logger zLogger.ZLogger) (*controller, error) {
+func NewMainController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediaserverdbproto.DBControllerClient, actionControllerClient mediaserveractionproto.ActionControllerClient, vfs fs.FS, itemCacheSize int, itemCacheTimout time.Duration, logger zLogger.ZLogger) (*mainController, error) {
 	u, err := url.Parse(extAddr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "invalid external address '%s'", extAddr)
@@ -38,11 +38,12 @@ func NewController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediase
 	gin.SetMode(gin.DebugMode)
 	router := gin.Default()
 
-	c := &controller{
+	_logger := logger.With().Str("httpService", "mainController").Logger()
+	c := &mainController{
 		addr:                   addr,
 		router:                 router,
 		subpath:                subpath,
-		logger:                 logger,
+		logger:                 &_logger,
 		dbClient:               dbClient,
 		actionControllerClient: actionControllerClient,
 		actionParams:           map[string][]string{},
@@ -71,7 +72,7 @@ func NewController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediase
 	return c, nil
 }
 
-type controller struct {
+type mainController struct {
 	server                 http.Server
 	router                 *gin.Engine
 	addr                   string
@@ -84,7 +85,7 @@ type controller struct {
 	vfs                    fs.FS
 }
 
-func (ctrl *controller) getParams(mediaType string, action string) ([]string, error) {
+func (ctrl *mainController) getParams(mediaType string, action string) ([]string, error) {
 	sig := fmt.Sprintf("%s::%s", mediaType, action)
 	if params, ok := ctrl.actionParams[sig]; ok {
 		return params, nil
@@ -101,7 +102,7 @@ func (ctrl *controller) getParams(mediaType string, action string) ([]string, er
 	return resp.GetValues(), nil
 }
 
-func (ctrl *controller) Init(tlsConfig *tls.Config) error {
+func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
 	ctrl.router.GET("/:collection/:signature/:action", ctrl.action)
 	ctrl.router.GET("/:collection/:signature/:action/*params", ctrl.action)
 
@@ -114,7 +115,7 @@ func (ctrl *controller) Init(tlsConfig *tls.Config) error {
 	return nil
 }
 
-func (ctrl *controller) Start(wg *sync.WaitGroup) {
+func (ctrl *mainController) Start(wg *sync.WaitGroup) {
 	go func() {
 		wg.Add(1)
 		defer wg.Done() // let main know we are done cleaning up
@@ -136,17 +137,17 @@ func (ctrl *controller) Start(wg *sync.WaitGroup) {
 	}()
 }
 
-func (ctrl *controller) Stop() {
+func (ctrl *mainController) Stop() {
 	ctrl.server.Shutdown(context.Background())
 }
 
-func (ctrl *controller) GracefulStop() {
+func (ctrl *mainController) GracefulStop() {
 	ctrl.server.Shutdown(context.Background())
 }
 
 var isUrlRegexp = regexp.MustCompile(`^[a-z]+://`)
 
-func (ctrl *controller) action(c *gin.Context) {
+func (ctrl *mainController) action(c *gin.Context) {
 	collection := c.Param("collection")
 	signature := c.Param("signature")
 	action := c.Param("action")

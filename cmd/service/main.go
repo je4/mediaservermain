@@ -4,7 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/je4/filesystem/v2/pkg/vfsrw"
+	"github.com/je4/filesystem/v3/pkg/vfsrw"
 	genericproto "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaservermain/v2/config"
 	"github.com/je4/mediaservermain/v2/pkg/web"
@@ -73,12 +73,18 @@ func main() {
 		out = fp
 	}
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		log.Fatalf("cannot get hostname: %v", err)
+	}
+
 	output := zerolog.ConsoleWriter{Out: out, TimeFormat: time.RFC3339}
-	_logger := zerolog.New(output).With().Timestamp().Logger()
+	_logger := zerolog.New(output).With().Timestamp().Str("service", "mediaservermain"). /*.Array("addrs", zLogger.StringArray(addrStr))*/ Str("host", hostname).Str("addr", conf.LocalAddr).Logger()
 	_logger.Level(zLogger.LogLevel(conf.LogLevel))
 	var logger zLogger.ZLogger = &_logger
 
-	vfs, err := vfsrw.NewFS(conf.VFS, zLogger.NewZWrapper(logger))
+	_logger = _logger.With().Str("package", "vfsrw").Logger()
+	vfs, err := vfsrw.NewFS(conf.VFS, &_logger)
 	if err != nil {
 		logger.Panic().Err(err).Msg("cannot create vfs")
 	}
@@ -164,7 +170,7 @@ func main() {
 		}
 	}
 
-	ctrl, err := web.NewController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, dbClient, actionControllerClient, vfs, 200, 10*time.Minute, logger)
+	ctrl, err := web.NewMainController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, dbClient, actionControllerClient, vfs, 200, 10*time.Minute, logger)
 	if err != nil {
 		logger.Fatal().Msgf("cannot create controller: %v", err)
 	}
