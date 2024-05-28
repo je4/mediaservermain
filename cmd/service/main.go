@@ -8,10 +8,8 @@ import (
 	genericproto "github.com/je4/genericproto/v2/pkg/generic/proto"
 	"github.com/je4/mediaservermain/v2/config"
 	"github.com/je4/mediaservermain/v2/pkg/web"
-	mediaserveractionClient "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/client"
-	mediaserveractionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbClient "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/client"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverclient "github.com/je4/mediaserverproto/v2/pkg/mediaserver/client"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	miniresolverClient "github.com/je4/miniresolver/v2/pkg/client"
 	"github.com/je4/miniresolver/v2/pkg/grpchelper"
 	"github.com/je4/trustutil/v2/pkg/loader"
@@ -111,8 +109,8 @@ func main() {
 	var dbClientAddr string
 	var actionControllerClientAddr string
 	if conf.ResolverAddr != "" {
-		dbClientAddr = grpchelper.GetAddress(mediaserverdbproto.DBController_Ping_FullMethodName)
-		actionControllerClientAddr = grpchelper.GetAddress(mediaserveractionproto.ActionController_Ping_FullMethodName)
+		dbClientAddr = grpchelper.GetAddress(mediaserverproto.Database_Ping_FullMethodName)
+		actionControllerClientAddr = grpchelper.GetAddress(mediaserverproto.Action_Ping_FullMethodName)
 	} else {
 		if _, ok := conf.GRPCClient["mediaserverdb"]; !ok {
 			logger.Fatal().Msg("no mediaserverdb grpc client defined")
@@ -140,7 +138,7 @@ func main() {
 		grpchelper.RegisterResolver(miniResolverClient, time.Duration(conf.ResolverTimeout), time.Duration(conf.ResolverNotFoundTimeout), logger)
 	}
 
-	dbClient, dbClientCloser, err := mediaserverdbClient.CreateClient(dbClientAddr, clientCert)
+	dbClient, dbClientCloser, err := mediaserverclient.NewDatabaseClient(dbClientAddr, clientCert)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
@@ -155,7 +153,7 @@ func main() {
 		}
 	}
 
-	actionControllerClient, actionControllerClientCloser, err := mediaserveractionClient.CreateControllerClient(actionControllerClientAddr, clientCert)
+	actionControllerClient, actionControllerClientCloser, err := mediaserverclient.NewActionClient(actionControllerClientAddr, clientCert)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserveractioncontroller grpc client: %v", err)
 	}

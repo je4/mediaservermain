@@ -8,8 +8,7 @@ import (
 	"github.com/bluele/gcache"
 	"github.com/gin-gonic/gin"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
-	mediaserveractionproto "github.com/je4/mediaserverproto/v2/pkg/mediaserveraction/proto"
-	mediaserverdbproto "github.com/je4/mediaserverproto/v2/pkg/mediaserverdb/proto"
+	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -28,7 +27,7 @@ type itemIdentifier struct {
 	signature  string
 }
 
-func NewMainController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediaserverdbproto.DBControllerClient, actionControllerClient mediaserveractionproto.ActionControllerClient, vfs fs.FS, itemCacheSize int, itemCacheTimout time.Duration, logger zLogger.ZLogger) (*mainController, error) {
+func NewMainController(addr, extAddr string, tlsConfig *tls.Config, dbClient mediaserverproto.DatabaseClient, actionControllerClient mediaserverproto.ActionClient, vfs fs.FS, itemCacheSize int, itemCacheTimout time.Duration, logger zLogger.ZLogger) (*mainController, error) {
 	u, err := url.Parse(extAddr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "invalid external address '%s'", extAddr)
@@ -55,7 +54,7 @@ func NewMainController(addr, extAddr string, tlsConfig *tls.Config, dbClient med
 				if !ok {
 					return nil, errors.Errorf("invalid key type %T", key)
 				}
-				resp, err := dbClient.GetItem(context.Background(), &mediaserverdbproto.ItemIdentifier{
+				resp, err := dbClient.GetItem(context.Background(), &mediaserverproto.ItemIdentifier{
 					Collection: it.collection,
 					Signature:  it.signature,
 				})
@@ -78,8 +77,8 @@ type mainController struct {
 	addr                   string
 	subpath                string
 	logger                 zLogger.ZLogger
-	dbClient               mediaserverdbproto.DBControllerClient
-	actionControllerClient mediaserveractionproto.ActionControllerClient
+	dbClient               mediaserverproto.DatabaseClient
+	actionControllerClient mediaserverproto.ActionClient
 	actionParams           map[string][]string
 	itemCache              gcache.Cache
 	vfs                    fs.FS
@@ -90,7 +89,7 @@ func (ctrl *mainController) getParams(mediaType string, action string) ([]string
 	if params, ok := ctrl.actionParams[sig]; ok {
 		return params, nil
 	}
-	resp, err := ctrl.actionControllerClient.GetParams(context.Background(), &mediaserveractionproto.ParamsParam{
+	resp, err := ctrl.actionControllerClient.GetParams(context.Background(), &mediaserverproto.ParamsParam{
 		Type:   mediaType,
 		Action: action,
 	})
@@ -161,7 +160,7 @@ func (ctrl *mainController) action(c *gin.Context) {
 		})
 		return
 	}
-	item, ok := itemAny.(*mediaserverdbproto.Item)
+	item, ok := itemAny.(*mediaserverproto.Item)
 	if !ok {
 		ctrl.logger.Error().Msgf("invalid item type %T", itemAny)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -171,7 +170,7 @@ func (ctrl *mainController) action(c *gin.Context) {
 	}
 
 	if action == "metadata" {
-		metadata, err := ctrl.dbClient.GetItemMetadata(context.Background(), &mediaserverdbproto.ItemIdentifier{
+		metadata, err := ctrl.dbClient.GetItemMetadata(context.Background(), &mediaserverproto.ItemIdentifier{
 			Collection: collection,
 			Signature:  signature,
 		})
@@ -208,8 +207,8 @@ func (ctrl *mainController) action(c *gin.Context) {
 		params.SetString(paramStr, allowedParams)
 	}
 
-	cache, err := ctrl.dbClient.GetCache(context.Background(), &mediaserverdbproto.CacheRequest{
-		Identifier: &mediaserverdbproto.ItemIdentifier{
+	cache, err := ctrl.dbClient.GetCache(context.Background(), &mediaserverproto.CacheRequest{
+		Identifier: &mediaserverproto.ItemIdentifier{
 			Collection: collection,
 			Signature:  signature,
 		},
@@ -225,7 +224,7 @@ func (ctrl *mainController) action(c *gin.Context) {
 			})
 			return
 		}
-		coll, err := ctrl.dbClient.GetCollection(context.Background(), &mediaserverdbproto.CollectionIdentifier{
+		coll, err := ctrl.dbClient.GetCollection(context.Background(), &mediaserverproto.CollectionIdentifier{
 			Collection: collection,
 		})
 		if err != nil {
@@ -237,7 +236,7 @@ func (ctrl *mainController) action(c *gin.Context) {
 		}
 
 		// cache not found, create it
-		cache, err = ctrl.actionControllerClient.Action(context.Background(), &mediaserveractionproto.ActionParam{
+		cache, err = ctrl.actionControllerClient.Action(context.Background(), &mediaserverproto.ActionParam{
 			Item:    item,
 			Action:  action,
 			Params:  params,
