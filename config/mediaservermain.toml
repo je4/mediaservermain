@@ -113,3 +113,21 @@ MldlTTKB3zhThV1+XWYp6rjd5JW1zbVWEkLNxE7GJThEUG3szgBVGP7pSWTUTsqX
 nLRbwHOoq7hHwg==
 -----END CERTIFICATE-----
 """
+
+[log]
+level = "debug"
+
+[log.stash]
+#logstash_host="sb-uwf4.swissbib.unibas.ch"
+logstashhost="localhost"
+logstashport=5046
+logstashtracelevel="ERROR"
+namespace="mediaservermain"
+dataset=""
+#dataset="logs-mediaserver"
+[log.stash.tls]
+type="file"
+cert="certs/ub-log.ub.unibas.ch.cert.pem"
+key="certs/ub-log.ub.unibas.ch.key.pem"
+ca="certs/ca.crt"
+interval="1h"

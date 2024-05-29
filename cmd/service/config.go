@@ -4,25 +4,27 @@ import (
 	"emperror.dev/errors"
 	"github.com/BurntSushi/toml"
 	"github.com/je4/filesystem/v3/pkg/vfsrw"
-	"github.com/je4/trustutil/v2/pkg/loader"
+	loaderConfig "github.com/je4/trustutil/v2/pkg/config"
 	"github.com/je4/utils/v2/pkg/config"
+	"github.com/je4/utils/v2/pkg/zLogger"
 	"io/fs"
 	"os"
 )
 
 type MediaserverMainConfig struct {
-	LocalAddr               string                `toml:"localaddr"`
-	ExternalAddr            string                `toml:"externaladdr"`
-	ResolverAddr            string                `toml:"resolveraddr"`
-	ResolverTimeout         config.Duration       `toml:"resolvertimeout"`
-	ResolverNotFoundTimeout config.Duration       `toml:"resolvernotfoundtimeout"`
-	WebTLS                  loader.TLSConfig      `toml:"webtls"`
-	ServerTLS               *loader.TLSConfig     `toml:"server"`
-	ClientTLS               *loader.TLSConfig     `toml:"client"`
-	LogFile                 string                `toml:"logfile"`
-	LogLevel                string                `toml:"loglevel"`
-	GRPCClient              map[string]string     `toml:"grpcclient"`
-	VFS                     map[string]*vfsrw.VFS `toml:"vfs"`
+	LocalAddr               string                  `toml:"localaddr"`
+	ExternalAddr            string                  `toml:"externaladdr"`
+	ResolverAddr            string                  `toml:"resolveraddr"`
+	ResolverTimeout         config.Duration         `toml:"resolvertimeout"`
+	ResolverNotFoundTimeout config.Duration         `toml:"resolvernotfoundtimeout"`
+	WebTLS                  loaderConfig.TLSConfig  `toml:"webtls"`
+	ServerTLS               *loaderConfig.TLSConfig `toml:"server"`
+	ClientTLS               *loaderConfig.TLSConfig `toml:"client"`
+	LogFile                 string                  `toml:"logfile"`
+	LogLevel                string                  `toml:"loglevel"`
+	GRPCClient              map[string]string       `toml:"grpcclient"`
+	VFS                     map[string]*vfsrw.VFS   `toml:"vfs"`
+	Log                     zLogger.Config          `toml:"log"`
 }
 
 func LoadMediaserverMainConfig(fSys fs.FS, fp string, conf *MediaserverMainConfig) error {

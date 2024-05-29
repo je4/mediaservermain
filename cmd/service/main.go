@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/je4/filesystem/v3/pkg/vfsrw"
@@ -8,10 +9,11 @@ import (
 	"github.com/je4/mediaservermain/v2/pkg/web"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/miniresolver/v2/pkg/resolver"
+	loaderConfig "github.com/je4/trustutil/v2/pkg/config"
 	"github.com/je4/trustutil/v2/pkg/loader"
 	configutil "github.com/je4/utils/v2/pkg/config"
 	"github.com/je4/utils/v2/pkg/zLogger"
-	"github.com/rs/zerolog"
+	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger"
 	"io"
 	"io/fs"
 	"log"
@@ -45,39 +47,51 @@ func main() {
 		LogLevel:                "DEBUG",
 		ResolverTimeout:         configutil.Duration(10 * time.Minute),
 		ResolverNotFoundTimeout: configutil.Duration(10 * time.Second),
-		ServerTLS: &loader.TLSConfig{
+		ServerTLS: &loaderConfig.TLSConfig{
 			Type: "DEV",
 		},
-		ClientTLS: &loader.TLSConfig{
+		ClientTLS: &loaderConfig.TLSConfig{
 			Type: "DEV",
 		},
 	}
 	if err := LoadMediaserverMainConfig(cfgFS, cfgFile, conf); err != nil {
 		log.Fatalf("cannot load toml from [%v] %s: %v", cfgFS, cfgFile, err)
 	}
-	// create logger instance
-	var out io.Writer = os.Stdout
-	if conf.LogFile != "" {
-		fp, err := os.OpenFile(conf.LogFile, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0644)
-		if err != nil {
-			log.Fatalf("cannot open logfile %s: %v", conf.LogFile, err)
-		}
-		defer fp.Close()
-		out = fp
-	}
 
+	// create logger instance
 	hostname, err := os.Hostname()
 	if err != nil {
 		log.Fatalf("cannot get hostname: %v", err)
 	}
 
-	output := zerolog.ConsoleWriter{Out: out, TimeFormat: time.RFC3339}
-	_logger := zerolog.New(output).With().Timestamp().Str("service", "mediaservermain"). /*.Array("addrs", zLogger.StringArray(addrStr))*/ Str("host", hostname).Str("addr", conf.LocalAddr).Logger()
-	_logger.Level(zLogger.LogLevel(conf.LogLevel))
-	var logger zLogger.ZLogger = &_logger
+	var loggerTLSConfig *tls.Config
+	var loggerLoader io.Closer
+	if conf.Log.Stash.TLS != nil {
+		loggerTLSConfig, loggerLoader, err = loader.CreateClientLoader(conf.Log.Stash.TLS, nil)
+		if err != nil {
+			log.Fatalf("cannot create client loader: %v", err)
+		}
+		defer loggerLoader.Close()
+	}
 
-	_logger = _logger.With().Str("package", "vfsrw").Logger()
-	vfs, err := vfsrw.NewFS(conf.VFS, &_logger)
+	_logger, _logstash, _logfile := ublogger.CreateUbMultiLoggerTLS(conf.Log.Level, conf.Log.File,
+		ublogger.SetDataset(conf.Log.Stash.Dataset),
+		ublogger.SetLogStash(conf.Log.Stash.LogstashHost, conf.Log.Stash.LogstashPort, conf.Log.Stash.Namespace, conf.Log.Stash.LogstashTraceLevel),
+		ublogger.SetTLS(conf.Log.Stash.TLS != nil),
+		ublogger.SetTLSConfig(loggerTLSConfig),
+	)
+	if _logstash != nil {
+		defer _logstash.Close()
+	}
+	if _logfile != nil {
+		defer _logfile.Close()
+	}
+
+	l2 := _logger.With().Str("host", hostname).Str("addr", conf.LocalAddr).Logger() //.Output(output)
+	var logger zLogger.ZLogger = &l2
+
+	l3 := _logger.With().Str("package", "vfsrw").Logger()
+	vfs, err := vfsrw.NewFS(conf.VFS, &l3)
 	if err != nil {
 		logger.Panic().Err(err).Msg("cannot create vfs")
 	}
