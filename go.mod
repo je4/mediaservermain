@@ -11,7 +11,7 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/je4/filesystem/v3 v3.0.2
 	github.com/je4/mediaserveraction/v2 v2.0.10
-	github.com/je4/mediaserverproto/v2 v2.0.27
+	github.com/je4/mediaserverproto/v2 v2.0.28
 	github.com/je4/miniresolver/v2 v2.0.13
 	github.com/je4/trustutil/v2 v2.0.15
 	github.com/je4/utils/v2 v2.0.38
@@ -32,6 +32,7 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
+	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/je4/genericproto/v2 v2.0.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect

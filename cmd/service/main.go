@@ -140,7 +140,7 @@ func main() {
 	}
 	resolver.DoPing(actionControllerClient, logger)
 
-	ctrl, err := web.NewMainController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, dbClient, actionControllerClient, vfs, 200, 10*time.Minute, logger)
+	ctrl, err := web.NewMainController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, conf.JWTAlg, dbClient, actionControllerClient, vfs, 200, 20, 10*time.Minute, logger)
 	if err != nil {
 		logger.Fatal().Msgf("cannot create controller: %v", err)
 	}

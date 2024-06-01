@@ -14,6 +14,8 @@ import (
 type MediaserverMainConfig struct {
 	LocalAddr               string                  `toml:"localaddr"`
 	ExternalAddr            string                  `toml:"externaladdr"`
+	JWTKey                  string                  `toml:"jwtkey"`
+	JWTAlg                  []string                `toml:"jwtalg"`
 	ResolverAddr            string                  `toml:"resolveraddr"`
 	ResolverTimeout         config.Duration         `toml:"resolvertimeout"`
 	ResolverNotFoundTimeout config.Duration         `toml:"resolvernotfoundtimeout"`

@@ -4,6 +4,10 @@ resolvertimeout = "10m"
 resolvernotfoundtimeout = "10s"
 externaladdr = "https://localhost:8761"
 loglevel = "DEBUG"
+jwtkey = "geheim"
+jwtalg = ["HS256","HS384","HS512"]
+
+
 
 [grpcclient]
 mediaserverdb = "localhost:7653"
