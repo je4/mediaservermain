@@ -1,0 +1,24 @@
+{
+  "identifier": {
+    "collection": "test",
+    "signature": "10_3931_e-rara-117673_20230922T115950_master_ver1.zip_10_3931_e-rara-117673_image_29328435.tif"
+  },
+  "urn": "vfs://test/ub-reprofiler/mets-container-doi/bau_1/2023/9972728570905504/10_3931_e-rara-117673_20230922T115950_master_ver1.zip/10_3931_e-rara-117673/image/29328435.tif",
+  "created": {
+    "seconds": 1716550713,
+    "nanos": 216223000
+  },
+  "updated": {
+    "seconds": 1716741835,
+    "nanos": 646308000
+  },
+  "public": true,
+  "status": "ok",
+  "metadata": {
+    "type": "image",
+    "subtype": "tiff",
+    "objecttype": "file",
+    "mimetype": "image/tiff",
+    "sha512": "f657e395f3d0f43afdd485071e4b05c9294fdf38af7453b4d4196d6b41e8d5815eec37fee9b0e3f637229fd14450111495cac93391c6ea5477017fb60600d549"
+  }
+}
