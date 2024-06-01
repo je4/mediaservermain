@@ -13,6 +13,7 @@ import (
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
@@ -23,6 +24,11 @@ import (
 	"time"
 )
 
+const (
+	IIIFJP2Action       = "convert"
+	IIIFJP2ActionParams = "formatjp2/tile512x512"
+)
+
 type itemIdentifier struct {
 	collection string
 	signature  string
@@ -31,6 +37,7 @@ type itemIdentifier struct {
 func NewMainController(addr, extAddr string,
 	tlsConfig *tls.Config,
 	jwtAlgs []string,
+	iiif, iiifPrefix string,
 	dbClient mediaserverproto.DatabaseClient, actionControllerClient mediaserverproto.ActionClient,
 	vfs fs.FS,
 	itemCacheSize, collectionCachesize int, cacheTimout time.Duration,
@@ -47,7 +54,10 @@ func NewMainController(addr, extAddr string,
 	_logger := logger.With().Str("httpService", "mainController").Logger()
 	c := &mainController{
 		addr:                   addr,
+		extAddr:                extAddr,
 		jwtAlgs:                jwtAlgs,
+		iiif:                   iiif,
+		iiifPrefix:             iiifPrefix,
 		router:                 router,
 		subpath:                subpath,
 		logger:                 &_logger,
@@ -114,6 +124,9 @@ type mainController struct {
 	collectionCache        gcache.Cache
 	vfs                    fs.FS
 	jwtAlgs                []string
+	iiif                   string
+	iiifPrefix             string
+	extAddr                string
 }
 
 func (ctrl *mainController) getParams(mediaType string, action string) ([]string, error) {
@@ -158,6 +171,7 @@ func (ctrl *mainController) getCollection(collection string) (*mediaserverproto.
 }
 
 func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
+	ctrl.router.GET("/iiif/:collection/:signature/*params", ctrl.iiifAction)
 	ctrl.router.GET("/:collection/:signature/:action", ctrl.action)
 	ctrl.router.GET("/:collection/:signature/:action/*params", ctrl.action)
 
@@ -262,6 +276,189 @@ func (ctrl *mainController) checkAccess(collection, signature, action, paramStr,
 	}
 
 	return nil
+}
+func (ctrl *mainController) iiifAction(c *gin.Context) {
+	action := "iiif"
+	collection := c.Param("collection")
+	signature := c.Param("signature")
+	paramStr := c.Param("params")
+	token := c.Query("token")
+	ctrl.logger.Debug().Msgf("collection: %s, signature: %s, action: %s, params: %s", collection, signature, action, paramStr)
+
+	item, err := ctrl.getItem(collection, signature)
+	if err != nil {
+		httpStatus := http.StatusInternalServerError
+		stat, ok := status.FromError(err)
+		if !ok || stat.Code() != codes.NotFound {
+			httpStatus = http.StatusNotFound
+		}
+		ctrl.logger.Error().Err(err).Msgf("cannot get item %s/%s", collection, signature)
+		c.JSON(httpStatus, gin.H{
+			"error": fmt.Sprintf("cannot get item %s/%s: %v", collection, signature, err),
+		})
+		c.Abort()
+		return
+	}
+	if err := ctrl.checkAccess(collection, signature, action, paramStr, token); err != nil {
+		ctrl.logger.Info().Err(err).Msgf("access denied for %s/%s/%s/%s", collection, signature, action, paramStr)
+		c.JSON(http.StatusUnauthorized, gin.H{"error": fmt.Sprintf("access denied for %s/%s/%s/%s: %v", collection, signature, action, paramStr, err)})
+		c.Abort()
+		return
+	}
+	// todo: make it configurable
+	cache, err := ctrl.dbClient.GetCache(context.Background(), &mediaserverproto.CacheRequest{
+		Identifier: &mediaserverproto.ItemIdentifier{
+			Collection: collection,
+			Signature:  signature,
+		},
+		Action: IIIFJP2Action,
+		Params: IIIFJP2ActionParams,
+	})
+	if err != nil {
+		stat, ok := status.FromError(err)
+		if !ok || stat.Code() != codes.NotFound {
+			ctrl.logger.Error().Err(err).Msgf("cannot get cache for %s/%s/%s", collection, signature, action)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get cache for %s/%s/%s: %v", collection, signature, action, err),
+			})
+			return
+		}
+		coll, err := ctrl.dbClient.GetCollection(context.Background(), &mediaserverproto.CollectionIdentifier{
+			Collection: collection,
+		})
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot get collection %s", collection)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get collection %s: %v", collection, err),
+			})
+			return
+		}
+
+		var params = actionCache.ActionParams{}
+		allowedParams, err := ctrl.getParams(item.GetMetadata().GetType(), IIIFJP2Action)
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot get params for %s::%s", item.GetMetadata().GetType(), action)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get params for %s::%s: %v", item.GetMetadata().GetType(), action, err),
+			})
+			return
+		}
+		params.SetString(paramStr, allowedParams)
+
+		// cache not found, create it
+		cache, err = ctrl.actionControllerClient.Action(context.Background(), &mediaserverproto.ActionParam{
+			Item:    item,
+			Action:  IIIFJP2Action,
+			Params:  params,
+			Storage: coll.GetStorage(),
+		})
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot get cache for %s/%s/%s: %v", collection, signature, action, err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get cache for %s/%s/%s: %v", collection, signature, action, err),
+			})
+			return
+		}
+		if cache == nil {
+			ctrl.logger.Error().Msgf("cannot get cache for %s/%s/%s: no cache", collection, signature, action)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot get cache for %s/%s/%s: no cache", collection, signature, action),
+			})
+			return
+		}
+	}
+	fullpath := cache.GetMetadata().GetPath()
+	if !isUrlRegexp.MatchString(fullpath) {
+		stor := cache.GetMetadata().GetStorage()
+		if stor == nil {
+			ctrl.logger.Error().Msgf("no storage defined for %s/%s/%s/%s", collection, signature, action, paramStr)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("no storage defined for %s/%s/%s/%s", collection, signature, action, paramStr),
+			})
+			return
+		}
+		fullpath = stor.GetFilebase() + "/" + fullpath
+	}
+	iifPath := strings.Replace(strings.TrimPrefix(fullpath, ctrl.iiifPrefix), "/", "$$", -1)
+
+	u, err := url.JoinPath(ctrl.iiif, iifPath, paramStr)
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot join url '%s' and [%v]", ctrl.iiif, []string{iifPath, paramStr})
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot join url '%s' and [%v]: %v", ctrl.iiif, []string{iifPath, paramStr}, err),
+		})
+		c.Abort()
+		return
+	}
+	ctrl.logger.Debug().Msgf("proxy to %s", u)
+	req2, err := http.NewRequest("GET", u, nil)
+	if err != nil {
+		fmt.Printf("cantaloupe request error: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot create new request to %s: %v", u, err),
+		})
+		c.Abort()
+		return
+	}
+
+	urlStr, err := url.JoinPath(ctrl.extAddr)
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot join url %s %s", ctrl.extAddr, "iiif")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot join url %s %s: %v", ctrl.extAddr, "iiif", err),
+		})
+		c.Abort()
+		return
+	}
+	p, err := url.Parse(urlStr)
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot parse url %s", urlStr)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot parse url %s: %v", urlStr, err),
+		})
+		c.Abort()
+		return
+	}
+
+	// build headers to send cantaloupe the real url's to use
+	//proto, host, port := ms.getProtoHostPort(req)
+	req2.Header.Add("X-Forwarded-Proto", p.Scheme)
+	req2.Header.Add("X-Forwarded-Host", p.Hostname())
+	req2.Header.Add("X-Forwarded-Port", p.Port())
+	// req2.Header.Add("X-Forwarded-Path", SingleJoiningSlash(baseurl.RawPath, SingleJoiningSlash(ms.iiifPrefix, signature+"/"+newtoken)+"/"))
+	req2.Header.Add("X-Forwarded-Path", p.Path)
+	req2.Header.Add("X-Forwarded-For", c.Request.RemoteAddr[:strings.IndexByte(c.Request.RemoteAddr, ':')])
+	req2.Header.Add("X-Forwarded-ID", fmt.Sprintf("%s/%s", collection, signature))
+
+	for k, v := range req2.Header {
+		ctrl.logger.Debug().Msgf("header %s: %v", k, v)
+	}
+	client := &http.Client{}
+	rs, err := client.Do(req2)
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot proxy to iiif server: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot proxy to iiif server: %v", err),
+		})
+		c.Abort()
+		return
+	}
+
+	defer rs.Body.Close()
+
+	for k, v := range rs.Header {
+		for _, vv := range v {
+			c.Header(k, vv)
+		}
+	}
+
+	c.Writer.WriteHeader(rs.StatusCode)
+	c.Writer.WriteHeaderNow()
+	if _, err := io.Copy(c.Writer, rs.Body); err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot copy from iiif server: %v", err)
+		return
+	}
+	return
 }
 func (ctrl *mainController) action(c *gin.Context) {
 	collection := c.Param("collection")

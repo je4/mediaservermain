@@ -14,6 +14,8 @@ import (
 type MediaserverMainConfig struct {
 	LocalAddr               string                  `toml:"localaddr"`
 	ExternalAddr            string                  `toml:"externaladdr"`
+	IIIF                    string                  `toml:"iiif"`
+	IIIFPrefix              string                  `toml:"iiifprefix"`
 	JWTKey                  string                  `toml:"jwtkey"`
 	JWTAlg                  []string                `toml:"jwtalg"`
 	ResolverAddr            string                  `toml:"resolveraddr"`

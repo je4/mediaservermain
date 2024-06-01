@@ -50,3 +50,9 @@ https://localhost:8761/test/10_3931_e-rara-117673_20230922T115950_master_ver1.zi
 
 ###
 https://localhost:8761/test/10_3931_e-rara-117673_20230922T115950_master_ver1.zip_10_3931_e-rara-117673_image_29328435.tif/resize/size180x180/formatjpg/sharpen4
+
+###  JP2
+https://localhost:8761/test/10_3931_e-rara-117673_20230922T115950_master_ver1.zip_10_3931_e-rara-117673_image_29328435.tif/convert/formatjp2/tile512x512/test.jp2
+
+###  IIIF
+https://localhost:8761/iiif/test/10_3931_e-rara-117673_20230922T115950_master_ver1.zip_10_3931_e-rara-117673_image_29328435.tif/info.json

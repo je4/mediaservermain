@@ -6,7 +6,8 @@ externaladdr = "https://localhost:8761"
 loglevel = "DEBUG"
 jwtkey = "geheim"
 jwtalg = ["HS256","HS384","HS512"]
-
+iiif = "http://localhost:8182/iiif/3"
+iiifprefix = "vfs://testcache/ub-media-testbucket-02/"
 
 
 [grpcclient]
