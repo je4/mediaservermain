@@ -6,6 +6,7 @@ import (
 	"emperror.dev/errors"
 	"fmt"
 	"github.com/bluele/gcache"
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
@@ -19,6 +20,7 @@ import (
 	"net/url"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -171,7 +173,8 @@ func (ctrl *mainController) getCollection(collection string) (*mediaserverproto.
 }
 
 func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
-	ctrl.router.GET("/iiif/:collection/:signature/*params", ctrl.iiifAction)
+	ctrl.router.Use(cors.Default())
+	ctrl.router.GET("/iiif/:version/:collection/:signature/*params", ctrl.iiifAction)
 	ctrl.router.GET("/:collection/:signature/:action", ctrl.action)
 	ctrl.router.GET("/:collection/:signature/:action/*params", ctrl.action)
 
@@ -279,6 +282,16 @@ func (ctrl *mainController) checkAccess(collection, signature, action, paramStr,
 }
 func (ctrl *mainController) iiifAction(c *gin.Context) {
 	action := "iiif"
+	version := c.Param("version")
+	versionInt, err := strconv.Atoi(version)
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("invalid IIIF version '%s'", version)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": fmt.Sprintf("invalid IIIF version '%s'", version),
+		})
+		c.Abort()
+		return
+	}
 	collection := c.Param("collection")
 	signature := c.Param("signature")
 	paramStr := c.Param("params")
@@ -381,7 +394,7 @@ func (ctrl *mainController) iiifAction(c *gin.Context) {
 	}
 	iifPath := strings.Replace(strings.TrimPrefix(fullpath, ctrl.iiifPrefix), "/", "$$", -1)
 
-	u, err := url.JoinPath(ctrl.iiif, iifPath, paramStr)
+	u, err := url.JoinPath(ctrl.iiif, strconv.Itoa(versionInt), iifPath, paramStr)
 	if err != nil {
 		ctrl.logger.Error().Err(err).Msgf("cannot join url '%s' and [%v]", ctrl.iiif, []string{iifPath, paramStr})
 		c.JSON(http.StatusInternalServerError, gin.H{

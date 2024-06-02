@@ -8,13 +8,16 @@ require (
 	emperror.dev/errors v0.8.1
 	github.com/BurntSushi/toml v1.4.0
 	github.com/bluele/gcache v0.0.2
+	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/je4/filesystem/v3 v3.0.2
 	github.com/je4/mediaserveraction/v2 v2.0.10
 	github.com/je4/mediaserverproto/v2 v2.0.28
 	github.com/je4/miniresolver/v2 v2.0.13
 	github.com/je4/trustutil/v2 v2.0.15
 	github.com/je4/utils/v2 v2.0.38
+	github.com/rs/cors v1.10.1
 	gitlab.switch.ch/ub-unibas/go-ublogger v0.0.0-20240529135102-38bc77a4bfdf
 	google.golang.org/grpc v1.64.0
 )
@@ -32,7 +35,6 @@ require (
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-playground/validator/v10 v10.20.0 // indirect
 	github.com/goccy/go-json v0.10.3 // indirect
-	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/je4/genericproto/v2 v2.0.3 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -66,7 +68,6 @@ require (
 	golang.org/x/text v0.15.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240528184218-531527333157 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
-	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
