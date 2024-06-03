@@ -14,6 +14,7 @@ import (
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"html/template"
 	"io"
 	"io/fs"
 	"net/http"
@@ -131,6 +132,21 @@ type mainController struct {
 	extAddr                string
 }
 
+func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
+	ctrl.router.Use(cors.Default())
+	ctrl.router.GET("/iiif/:version/:collection/:signature/*params", ctrl.iiifAction)
+	ctrl.router.GET("/:collection/:signature/:action", ctrl.action)
+	ctrl.router.GET("/:collection/:signature/:action/*params", ctrl.action)
+
+	ctrl.server = http.Server{
+		Addr:      ctrl.addr,
+		Handler:   ctrl.router,
+		TLSConfig: tlsConfig,
+	}
+
+	return nil
+}
+
 func (ctrl *mainController) getParams(mediaType string, action string) ([]string, error) {
 	sig := fmt.Sprintf("%s::%s", mediaType, action)
 	if params, ok := ctrl.actionParams[sig]; ok {
@@ -170,21 +186,6 @@ func (ctrl *mainController) getCollection(collection string) (*mediaserverproto.
 		return nil, errors.Errorf("invalid item type %T", itemAny)
 	}
 	return coll, nil
-}
-
-func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
-	ctrl.router.Use(cors.Default())
-	ctrl.router.GET("/iiif/:version/:collection/:signature/*params", ctrl.iiifAction)
-	ctrl.router.GET("/:collection/:signature/:action", ctrl.action)
-	ctrl.router.GET("/:collection/:signature/:action/*params", ctrl.action)
-
-	ctrl.server = http.Server{
-		Addr:      ctrl.addr,
-		Handler:   ctrl.router,
-		TLSConfig: tlsConfig,
-	}
-
-	return nil
 }
 
 func (ctrl *mainController) Start(wg *sync.WaitGroup) {
@@ -301,8 +302,7 @@ func (ctrl *mainController) iiifAction(c *gin.Context) {
 	item, err := ctrl.getItem(collection, signature)
 	if err != nil {
 		httpStatus := http.StatusInternalServerError
-		stat, ok := status.FromError(err)
-		if !ok || stat.Code() != codes.NotFound {
+		if errors.Is(err, gcache.KeyNotFoundError) {
 			httpStatus = http.StatusNotFound
 		}
 		ctrl.logger.Error().Err(err).Msgf("cannot get item %s/%s", collection, signature)
@@ -604,7 +604,38 @@ func (ctrl *mainController) action(c *gin.Context) {
 		}
 		path = stor.GetFilebase() + "/" + path
 	}
-	c.Header("Content-Type", metadata.GetMimeType())
-	c.FileFromFS(path, http.FS(ctrl.vfs))
+
+	mime := metadata.GetMimeType()
+	switch mime {
+	case "text/gohtml":
+		data, err := fs.ReadFile(ctrl.vfs, path)
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot read file %v/%s", ctrl.vfs, path)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot read file %v/%s: %v", ctrl.vfs, path, err),
+			})
+			c.Abort()
+			return
+		}
+		tpl, err := template.New("action").Parse(string(data))
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot parse template %v/%s", ctrl.vfs, path)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot parse template %v/%s: %v", ctrl.vfs, path, err),
+			})
+			return
+		}
+		c.Header("Content-Type", "text/html")
+		if err := tpl.Execute(c.Writer, map[string]string{"BaseURL": ctrl.extAddr}); err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot execute template %v/%s", ctrl.vfs, path)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot execute template %v/%s: %v", ctrl.vfs, path, err),
+			})
+			return
+		}
+	default:
+		c.Header("Content-Type", mime)
+		c.FileFromFS(path, http.FS(ctrl.vfs))
+	}
 	return
 }
