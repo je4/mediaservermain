@@ -27,24 +27,12 @@ import (
 	"time"
 )
 
-const (
-	IIIFJP2Action       = "convert"
-	IIIFJP2ActionParams = "formatjp2/tile512x512"
-)
-
 type itemIdentifier struct {
 	collection string
 	signature  string
 }
 
-func NewMainController(addr, extAddr string,
-	tlsConfig *tls.Config,
-	jwtAlgs []string,
-	iiif, iiifPrefix string,
-	dbClient mediaserverproto.DatabaseClient, actionControllerClient mediaserverproto.ActionClient,
-	vfs fs.FS,
-	itemCacheSize, collectionCachesize int, cacheTimout time.Duration,
-	logger zLogger.ZLogger) (*mainController, error) {
+func NewMainController(addr, extAddr string, tlsConfig *tls.Config, jwtAlgs []string, iiif, iiifPrefix, iiifBaseAction string, dbClient mediaserverproto.DatabaseClient, actionControllerClient mediaserverproto.ActionClient, vfs fs.FS, itemCacheSize, collectionCachesize int, cacheTimout time.Duration, logger zLogger.ZLogger) (*mainController, error) {
 	u, err := url.Parse(extAddr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "invalid external address '%s'", extAddr)
@@ -55,12 +43,24 @@ func NewMainController(addr, extAddr string,
 	router := gin.Default()
 
 	_logger := logger.With().Str("httpService", "mainController").Logger()
+	parts := strings.SplitN(iiifBaseAction, "/", 2)
+	if len(parts) < 1 {
+		return nil, errors.New("invalid iiifBaseAction")
+	}
+	action := parts[0]
+	params := ""
+	if len(parts) > 1 {
+		params = parts[1]
+	}
+
 	c := &mainController{
 		addr:                   addr,
 		extAddr:                extAddr,
 		jwtAlgs:                jwtAlgs,
 		iiif:                   iiif,
 		iiifPrefix:             iiifPrefix,
+		iiifBaseAction:         action,
+		iiifBaseActionParams:   params,
 		router:                 router,
 		subpath:                subpath,
 		logger:                 &_logger,
@@ -130,6 +130,8 @@ type mainController struct {
 	iiif                   string
 	iiifPrefix             string
 	extAddr                string
+	iiifBaseAction         string
+	iiifBaseActionParams   string
 }
 
 func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
@@ -318,21 +320,20 @@ func (ctrl *mainController) iiifAction(c *gin.Context) {
 		c.Abort()
 		return
 	}
-	// todo: make it configurable
 	cache, err := ctrl.dbClient.GetCache(context.Background(), &mediaserverproto.CacheRequest{
 		Identifier: &mediaserverproto.ItemIdentifier{
 			Collection: collection,
 			Signature:  signature,
 		},
-		Action: IIIFJP2Action,
-		Params: IIIFJP2ActionParams,
+		Action: ctrl.iiifBaseAction,
+		Params: ctrl.iiifBaseActionParams,
 	})
 	if err != nil {
 		stat, ok := status.FromError(err)
 		if !ok || stat.Code() != codes.NotFound {
-			ctrl.logger.Error().Err(err).Msgf("cannot get cache for %s/%s/%s", collection, signature, action)
+			ctrl.logger.Error().Err(err).Msgf("cannot get cache for %s/%s/%s/%s", collection, signature, ctrl.iiifBaseAction, ctrl.iiifBaseActionParams)
 			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("cannot get cache for %s/%s/%s: %v", collection, signature, action, err),
+				"error": fmt.Sprintf("cannot get cache for %s/%s/%s/%s: %v", collection, signature, ctrl.iiifBaseAction, ctrl.iiifBaseActionParams, err),
 			})
 			return
 		}
@@ -348,7 +349,7 @@ func (ctrl *mainController) iiifAction(c *gin.Context) {
 		}
 
 		var params = actionCache.ActionParams{}
-		allowedParams, err := ctrl.getParams(item.GetMetadata().GetType(), IIIFJP2Action)
+		allowedParams, err := ctrl.getParams(item.GetMetadata().GetType(), ctrl.iiifBaseAction)
 		if err != nil {
 			ctrl.logger.Error().Err(err).Msgf("cannot get params for %s::%s", item.GetMetadata().GetType(), action)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -356,12 +357,12 @@ func (ctrl *mainController) iiifAction(c *gin.Context) {
 			})
 			return
 		}
-		params.SetString(paramStr, allowedParams)
+		params.SetString(ctrl.iiifBaseActionParams, allowedParams)
 
 		// cache not found, create it
 		cache, err = ctrl.actionControllerClient.Action(context.Background(), &mediaserverproto.ActionParam{
 			Item:    item,
-			Action:  IIIFJP2Action,
+			Action:  ctrl.iiifBaseAction,
 			Params:  params,
 			Storage: coll.GetStorage(),
 		})
@@ -381,8 +382,25 @@ func (ctrl *mainController) iiifAction(c *gin.Context) {
 		}
 	}
 	fullpath := cache.GetMetadata().GetPath()
+	/*itemCache, err := ctrl.dbClient.GetCache(context.Background(), &mediaserverproto.CacheRequest{
+		Identifier: &mediaserverproto.ItemIdentifier{
+			Collection: collection,
+			Signature:  signature,
+		},
+		Action: "item",
+	})
+	if err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot get item cache for %s/%s", collection, signature)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot get item cache for %s/%s: %v", collection, signature, err),
+		})
+		return
+	}
+	fullpath := itemCache.GetMetadata().GetPath()
+	*/
 	if !isUrlRegexp.MatchString(fullpath) {
 		stor := cache.GetMetadata().GetStorage()
+		//stor := itemCache.GetMetadata().GetStorage()
 		if stor == nil {
 			ctrl.logger.Error().Msgf("no storage defined for %s/%s/%s/%s", collection, signature, action, paramStr)
 			c.JSON(http.StatusInternalServerError, gin.H{

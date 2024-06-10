@@ -16,6 +16,7 @@ type MediaserverMainConfig struct {
 	ExternalAddr            string                  `toml:"externaladdr"`
 	IIIF                    string                  `toml:"iiif"`
 	IIIFPrefix              string                  `toml:"iiifprefix"`
+	IIIFBaseAction          string                  `toml:"iiifbaseaction"`
 	JWTKey                  string                  `toml:"jwtkey"`
 	JWTAlg                  []string                `toml:"jwtalg"`
 	ResolverAddr            string                  `toml:"resolveraddr"`
