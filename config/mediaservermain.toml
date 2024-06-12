@@ -8,7 +8,7 @@ jwtkey = "geheim"
 jwtalg = ["HS256","HS384","HS512"]
 iiif = "http://localhost:8182/iiif"
 iiifprefix = "vfs://testcache/ub-media-testbucket-02/"
-iiifbaseaction = "convert/formatjp2/tile512x512"
+iiifbaseaction = "convert/formatptiff"
 
 [grpcclient]
 mediaserverdb = "localhost:7653"
