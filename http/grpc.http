@@ -1,0 +1,4 @@
+GRPC grpctest.ub-dlza-test.k8s-001.unibas.ch:443/helloworld.Greeter/SayHello
+###
+
+GRPC localhost:7777/miniresolverproto.MiniResolver/Ping

@@ -1,4 +1,5 @@
 localaddr = ":8761"
+clientdomain = "ubmedia"
 resolveraddr = "[::1]:7777"
 resolvertimeout = "10m"
 resolvernotfoundtimeout = "10s"
@@ -9,6 +10,7 @@ jwtalg = ["HS256","HS384","HS512"]
 iiif = "http://localhost:8182/iiif"
 iiifprefix = "vfs://testcache/ub-media-testbucket-02/"
 iiifbaseaction = "convert/formatptiff"
+iiifbaseaction = "convert/formatjp2/"
 
 [grpcclient]
 mediaserverdb = "localhost:7653"
@@ -140,5 +142,5 @@ dataset=""
 type="file"
 cert="certs/ub-log.ub.unibas.ch.cert.pem"
 key="certs/ub-log.ub.unibas.ch.key.pem"
-ca="certs/ca.crt"
+ca=["certs/ca.crt"]
 interval="1h"

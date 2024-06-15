@@ -90,7 +90,7 @@ func main() {
 	l2 := _logger.With().Timestamp().Str("host", hostname).Str("addr", conf.LocalAddr).Logger() //.Output(output)
 	var logger zLogger.ZLogger = &l2
 
-	l3 := _logger.With().Str("package", "vfsrw").Logger()
+	l3 := _logger.With().Timestamp().Str("package", "vfsrw").Logger()
 	vfs, err := vfsrw.NewFS(conf.VFS, &l3)
 	if err != nil {
 		logger.Panic().Err(err).Msg("cannot create vfs")
@@ -128,13 +128,17 @@ func main() {
 	}
 	defer resolverClient.Close()
 
-	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, mediaserverproto.Database_ServiceDesc.ServiceName)
+	var domainPrefix string
+	if conf.ClientDomain != "" {
+		domainPrefix = conf.ClientDomain + "."
+	}
+	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, domainPrefix+mediaserverproto.Database_ServiceDesc.ServiceName)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
 	resolver.DoPing(dbClient, logger)
 
-	actionControllerClient, err := resolver.NewClient[mediaserverproto.ActionClient](resolverClient, mediaserverproto.NewActionClient, mediaserverproto.Action_ServiceDesc.ServiceName)
+	actionControllerClient, err := resolver.NewClient[mediaserverproto.ActionClient](resolverClient, mediaserverproto.NewActionClient, domainPrefix+mediaserverproto.Action_ServiceDesc.ServiceName)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserveractioncontroller grpc client: %v", err)
 	}
