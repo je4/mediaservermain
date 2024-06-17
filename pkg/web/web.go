@@ -68,6 +68,7 @@ func NewMainController(addr, extAddr string, tlsConfig *tls.Config, jwtAlgs []st
 		actionControllerClient: actionControllerClient,
 		actionParams:           map[string][]string{},
 		vfs:                    vfs,
+		actionTemplates:        gcache.New(100).LRU().Expiration(cacheTimout).Build(),
 		itemCache: gcache.New(itemCacheSize).
 			LRU().Expiration(cacheTimout).
 			LoaderFunc(func(key any) (any, error) {
@@ -132,6 +133,7 @@ type mainController struct {
 	extAddr                string
 	iiifBaseAction         string
 	iiifBaseActionParams   string
+	actionTemplates        gcache.Cache
 }
 
 func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
@@ -491,6 +493,24 @@ func (ctrl *mainController) iiifAction(c *gin.Context) {
 	}
 	return
 }
+
+func (ctrl *mainController) doTemplate(c *gin.Context, tpl *template.Template, collection, signature string) {
+	data := map[string]string{
+		"BaseURL":    ctrl.extAddr,
+		"Collection": collection,
+		"Signature":  signature,
+	}
+	c.Header("Content-Type", "text/html")
+	if err := tpl.Execute(c.Writer, data); err != nil {
+		ctrl.logger.Error().Err(err).Msgf("cannot execute template %v/%s", ctrl.vfs, tpl)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": fmt.Sprintf("cannot execute template %v/%s: %v", ctrl.vfs, tpl, err),
+		})
+		return
+	}
+	return
+}
+
 func (ctrl *mainController) action(c *gin.Context) {
 	collection := c.Param("collection")
 	signature := c.Param("signature")
@@ -559,6 +579,20 @@ func (ctrl *mainController) action(c *gin.Context) {
 		params.SetString(paramStr, allowedParams)
 	}
 
+	actionID := fmt.Sprintf("%s/%s", action, params.String())
+	if tplAny, err := ctrl.actionTemplates.Get(actionID); err == nil {
+		tpl, ok := tplAny.(*template.Template)
+		if !ok {
+			ctrl.logger.Error().Err(err).Msgf("invalid template type %T", tplAny)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("invalid template type %T", tplAny),
+			})
+			return
+		}
+		ctrl.doTemplate(c, tpl, collection, signature)
+		return
+	}
+
 	cache, err := ctrl.dbClient.GetCache(context.Background(), &mediaserverproto.CacheRequest{
 		Identifier: &mediaserverproto.ItemIdentifier{
 			Collection: collection,
@@ -576,9 +610,7 @@ func (ctrl *mainController) action(c *gin.Context) {
 			})
 			return
 		}
-		coll, err := ctrl.dbClient.GetCollection(context.Background(), &mediaserverproto.CollectionIdentifier{
-			Collection: collection,
-		})
+		collAny, err := ctrl.collectionCache.Get(collection)
 		if err != nil {
 			ctrl.logger.Error().Err(err).Msgf("cannot get collection %s", collection)
 			c.JSON(http.StatusInternalServerError, gin.H{
@@ -586,6 +618,7 @@ func (ctrl *mainController) action(c *gin.Context) {
 			})
 			return
 		}
+		coll, ok := collAny.(*mediaserverproto.Collection)
 
 		// cache not found, create it
 		cache, err = ctrl.actionControllerClient.Action(context.Background(), &mediaserverproto.ActionParam{
@@ -611,6 +644,19 @@ func (ctrl *mainController) action(c *gin.Context) {
 	}
 	metadata := cache.GetMetadata()
 	path := metadata.GetPath()
+	if metadata.GetMimeType() == "text/html" && strings.HasPrefix(path, "data:text/gohtml,") {
+		tpl, err := template.New(actionID).Parse(strings.TrimPrefix(path, "data:text/gohtml,"))
+		if err != nil {
+			ctrl.logger.Error().Err(err).Msgf("cannot parse template %s", path)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": fmt.Sprintf("cannot parse template %s: %v", path, err),
+			})
+			return
+		}
+		ctrl.actionTemplates.Set(actionID, tpl)
+		ctrl.doTemplate(c, tpl, collection, signature)
+		return
+	}
 	if !isUrlRegexp.MatchString(path) {
 		stor := metadata.GetStorage()
 		if stor == nil {

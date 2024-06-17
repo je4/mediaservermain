@@ -9,9 +9,9 @@ require (
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
 	github.com/golang-jwt/jwt/v5 v5.2.1
-	github.com/je4/filesystem/v3 v3.0.8
+	github.com/je4/filesystem/v3 v3.0.9
 	github.com/je4/mediaserveraction/v2 v2.0.17
-	github.com/je4/mediaserverproto/v2 v2.0.30
+	github.com/je4/mediaserverproto/v2 v2.0.35
 	github.com/je4/miniresolver/v2 v2.0.15
 	github.com/je4/trustutil/v2 v2.0.19
 	github.com/je4/utils/v2 v2.0.38
@@ -70,5 +70,5 @@ require (
 	google.golang.org/protobuf v1.34.2 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/klog/v2 v2.120.1 // indirect
+	k8s.io/klog/v2 v2.130.0 // indirect
 )

@@ -10,7 +10,7 @@ jwtalg = ["HS256","HS384","HS512"]
 iiif = "http://localhost:8182/iiif"
 iiifprefix = "vfs://testcache/ub-media-testbucket-02/"
 iiifbaseaction = "convert/formatptiff"
-iiifbaseaction = "convert/formatjp2/"
+#iiifbaseaction = "convert/formatjp2/"
 
 [grpcclient]
 mediaserverdb = "localhost:7653"
