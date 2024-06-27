@@ -32,7 +32,7 @@ type itemIdentifier struct {
 	signature  string
 }
 
-func NewMainController(addr, extAddr string, tlsConfig *tls.Config, jwtAlgs []string, iiif, iiifPrefix, iiifBaseAction string, dbClient mediaserverproto.DatabaseClient, actionControllerClient mediaserverproto.ActionClient, vfs fs.FS, itemCacheSize, collectionCachesize int, cacheTimout time.Duration, logger zLogger.ZLogger) (*mainController, error) {
+func NewMainController(addr, extAddr string, tlsConfig *tls.Config, jwtAlgs []string, iiif, iiifPrefix, iiifBaseAction string, dbClient mediaserverproto.DatabaseClient, actionControllerClient mediaserverproto.ActionClient, vfs fs.FS, itemCacheSize, collectionCachesize int, cacheTimout, actionTemplateTimeout time.Duration, logger zLogger.ZLogger) (*mainController, error) {
 	u, err := url.Parse(extAddr)
 	if err != nil {
 		return nil, errors.Wrapf(err, "invalid external address '%s'", extAddr)
@@ -68,7 +68,7 @@ func NewMainController(addr, extAddr string, tlsConfig *tls.Config, jwtAlgs []st
 		actionControllerClient: actionControllerClient,
 		actionParams:           map[string][]string{},
 		vfs:                    vfs,
-		actionTemplates:        gcache.New(100).LRU().Expiration(cacheTimout).Build(),
+		actionTemplates:        gcache.New(100).LRU().Expiration(actionTemplateTimeout).Build(),
 		itemCache: gcache.New(itemCacheSize).
 			LRU().Expiration(cacheTimout).
 			LoaderFunc(func(key any) (any, error) {
