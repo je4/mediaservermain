@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/je4/mediaserveraction/v2/pkg/actionCache"
+	"github.com/je4/mediaservermain/v2/data/web/static"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	"google.golang.org/grpc/codes"
@@ -138,6 +139,7 @@ type mainController struct {
 
 func (ctrl *mainController) Init(tlsConfig *tls.Config) error {
 	ctrl.router.Use(cors.Default())
+	ctrl.router.StaticFS("/static", http.FS(static.FS))
 	ctrl.router.GET("/iiif/:version/:collection/:signature/*params", ctrl.iiifAction)
 	ctrl.router.GET("/:collection/:signature/:action", ctrl.action)
 	ctrl.router.GET("/:collection/:signature/:action/*params", ctrl.action)
@@ -511,6 +513,8 @@ func (ctrl *mainController) doTemplate(c *gin.Context, tpl *template.Template, c
 	return
 }
 
+var dataRegexp = regexp.MustCompile(`(?s)^data:([^\/]+\/[^,]+),(.*)$`)
+
 func (ctrl *mainController) action(c *gin.Context) {
 	collection := c.Param("collection")
 	signature := c.Param("signature")
@@ -644,18 +648,31 @@ func (ctrl *mainController) action(c *gin.Context) {
 	}
 	metadata := cache.GetMetadata()
 	path := metadata.GetPath()
-	if metadata.GetMimeType() == "text/html" && strings.HasPrefix(path, "data:text/gohtml,") {
-		tpl, err := template.New(actionID).Parse(strings.TrimPrefix(path, "data:text/gohtml,"))
-		if err != nil {
-			ctrl.logger.Error().Err(err).Msgf("cannot parse template %s", path)
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": fmt.Sprintf("cannot parse template %s: %v", path, err),
-			})
+	matches := dataRegexp.FindStringSubmatch(path)
+	if matches != nil {
+		if metadata.GetMimeType() == "text/html" && matches[1] == "text/gohtml" {
+			tpl, err := template.New(actionID).Parse(strings.TrimPrefix(path, "data:text/gohtml,"))
+			if err != nil {
+				ctrl.logger.Error().Err(err).Msgf("cannot parse template %s", path)
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": fmt.Sprintf("cannot parse template %s: %v", path, err),
+				})
+				return
+			}
+			ctrl.actionTemplates.Set(actionID, tpl)
+			ctrl.doTemplate(c, tpl, collection, signature)
+			return
+		} else {
+			c.Header("Content-Type", metadata.GetMimeType())
+			if _, err := io.WriteString(c.Writer, matches[2]); err != nil {
+				ctrl.logger.Error().Err(err).Msgf("cannot write data %s", matches[2])
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": fmt.Sprintf("cannot write data %s: %v", matches[2], err),
+				})
+				return
+			}
 			return
 		}
-		ctrl.actionTemplates.Set(actionID, tpl)
-		ctrl.doTemplate(c, tpl, collection, signature)
-		return
 	}
 	if !isUrlRegexp.MatchString(path) {
 		stor := metadata.GetStorage()

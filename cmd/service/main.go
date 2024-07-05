@@ -47,6 +47,10 @@ func main() {
 		LogLevel:                "DEBUG",
 		ResolverTimeout:         configutil.Duration(10 * time.Minute),
 		ResolverNotFoundTimeout: configutil.Duration(10 * time.Second),
+		ActionTemplateTimeout:   configutil.Duration(120 * time.Second),
+		CollectionCacheTimeout:  configutil.Duration(10 * time.Minute),
+		CollectionCacheSize:     30,
+		ItemCacheSize:           1000,
 		ServerTLS: &loaderConfig.TLSConfig{
 			Type: "DEV",
 		},
@@ -144,7 +148,22 @@ func main() {
 	}
 	resolver.DoPing(actionControllerClient, logger)
 
-	ctrl, err := web.NewMainController(conf.LocalAddr, conf.ExternalAddr, webTLSConfig, conf.JWTAlg, conf.IIIF, conf.IIIFPrefix, conf.IIIFBaseAction, dbClient, actionControllerClient, vfs, 200, 20, 10*time.Minute, logger)
+	ctrl, err := web.NewMainController(
+		conf.LocalAddr,
+		conf.ExternalAddr,
+		webTLSConfig,
+		conf.JWTAlg,
+		conf.IIIF,
+		conf.IIIFPrefix,
+		conf.IIIFBaseAction,
+		dbClient,
+		actionControllerClient,
+		vfs,
+		conf.ItemCacheSize,
+		conf.CollectionCacheSize,
+		time.Duration(conf.CollectionCacheTimeout),
+		time.Duration(conf.ActionTemplateTimeout),
+		logger)
 	if err != nil {
 		logger.Fatal().Msgf("cannot create controller: %v", err)
 	}

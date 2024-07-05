@@ -10,6 +10,9 @@ jwtalg = ["HS256","HS384","HS512"]
 iiif = "http://localhost:8182/iiif"
 iiifprefix = "vfs://testcache/ub-media-testbucket-02/"
 iiifbaseaction = "convert/formatptiff"
+
+ActionTemplateTimeout = "10s"
+
 #iiifbaseaction = "convert/formatjp2/"
 
 [grpcclient]
@@ -51,7 +54,7 @@ Endpoint = "s3-zh.lts.switch.ch"
 Region = "zurich"
 UseSSL = true
 Debug = false
-CAPEM = """-----BEGIN CERTIFICATE-----
+_CAPEM = """-----BEGIN CERTIFICATE-----
 MIIEyDCCA7CgAwIBAgIQDPW9BitWAvR6uFAsI8zwZjANBgkqhkiG9w0BAQsFADBh
 MQswCQYDVQQGEwJVUzEVMBMGA1UEChMMRGlnaUNlcnQgSW5jMRkwFwYDVQQLExB3
 d3cuZGlnaWNlcnQuY29tMSAwHgYDVQQDExdEaWdpQ2VydCBHbG9iYWwgUm9vdCBH
@@ -95,7 +98,7 @@ UseSSL = true
 Debug = false
 BaseUrl = ""
 ZipAsFolderCache = 0
-CAPEM = """-----BEGIN CERTIFICATE-----
+_CAPEM = """-----BEGIN CERTIFICATE-----
 MIIFFjCCAv6gAwIBAgIRAJErCErPDBinU/bWLiWnX1owDQYJKoZIhvcNAQELBQAw
 TzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2Vh
 cmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMjAwOTA0MDAwMDAw

@@ -31,6 +31,10 @@ type MediaserverMainConfig struct {
 	GRPCClient              map[string]string       `toml:"grpcclient"`
 	VFS                     map[string]*vfsrw.VFS   `toml:"vfs"`
 	Log                     zLogger.Config          `toml:"log"`
+	ActionTemplateTimeout   config.Duration         `toml:"actiontemplatetimeout"`
+	CollectionCacheTimeout  config.Duration         `toml:"collectioncachetimeout"`
+	CollectionCacheSize     int                     `toml:"collectioncachesize"`
+	ItemCacheSize           int                     `toml:"itemcachesize"`
 }
 
 func LoadMediaserverMainConfig(fSys fs.FS, fp string, conf *MediaserverMainConfig) error {
