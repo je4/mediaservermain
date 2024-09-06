@@ -60,6 +60,18 @@ https://localhost:8761/iiif/3/test/10_3931_e-rara-117673_20230922T115950_master_
 ###  IIIF
 https://localhost:8761/iiif/3/test/10_3931_e-rara-117673_20230922T115950_master_ver1.zip_10_3931_e-rara-117673_image_29328435.tif/0,0,200,200/max/0/default.jpg
 
+###  PTIF
+https://localhost:8761/test/iiif_test_andromeda_small/convert/formatptif/tile128x128/compressjpeg/quality75/default.tif
+
+### ITEM
+https://localhost:8761/test/iiif_test_andromeda_small/item/test.tif
+
+###  TIF
+https://localhost:8761/test/iiif_test_andromeda_small/convert/formattif/default2.tif
+
+###  TIF
+https://localhost:8761/test/10_3931_e-rara-117673_20230922T115950_master_ver1.zip_10_3931_e-rara-117673_image_29328435.tif/convert/formattif/default2.tif
+
 ###  JP2
 https://localhost:8761/test/iiif_test_andromeda_small/convert/formatjp2/tile512x512/test.jp2
 

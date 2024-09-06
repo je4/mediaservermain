@@ -4,13 +4,12 @@ import (
 	"crypto/tls"
 	"flag"
 	"fmt"
+	"github.com/je4/certloader/v2/pkg/loader"
 	"github.com/je4/filesystem/v3/pkg/vfsrw"
 	"github.com/je4/mediaservermain/v2/config"
 	"github.com/je4/mediaservermain/v2/pkg/web"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/miniresolver/v2/pkg/resolver"
-	loaderConfig "github.com/je4/trustutil/v2/pkg/config"
-	"github.com/je4/trustutil/v2/pkg/loader"
 	configutil "github.com/je4/utils/v2/pkg/config"
 	"github.com/je4/utils/v2/pkg/zLogger"
 	ublogger "gitlab.switch.ch/ub-unibas/go-ublogger"
@@ -51,10 +50,7 @@ func main() {
 		CollectionCacheTimeout:  configutil.Duration(10 * time.Minute),
 		CollectionCacheSize:     30,
 		ItemCacheSize:           1000,
-		ServerTLS: &loaderConfig.TLSConfig{
-			Type: "DEV",
-		},
-		ClientTLS: &loaderConfig.TLSConfig{
+		ClientTLS: &loader.Config{
 			Type: "DEV",
 		},
 	}
@@ -105,7 +101,7 @@ func main() {
 		}
 	}()
 
-	webTLSConfig, webLoader, err := loader.CreateServerLoader(false, &conf.WebTLS, nil, logger)
+	webTLSConfig, webLoader, err := loader.CreateServerLoader(false, conf.WebTLS, nil, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("cannot create server loader")
 	}
@@ -132,17 +128,13 @@ func main() {
 	}
 	defer resolverClient.Close()
 
-	var domainPrefix string
-	if conf.ClientDomain != "" {
-		domainPrefix = conf.ClientDomain + "."
-	}
-	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, domainPrefix+mediaserverproto.Database_ServiceDesc.ServiceName)
+	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, mediaserverproto.Database_ServiceDesc.ServiceName, conf.ClientDomain)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
 	resolver.DoPing(dbClient, logger)
 
-	actionControllerClient, err := resolver.NewClient[mediaserverproto.ActionClient](resolverClient, mediaserverproto.NewActionClient, domainPrefix+mediaserverproto.Action_ServiceDesc.ServiceName)
+	actionControllerClient, err := resolver.NewClient[mediaserverproto.ActionClient](resolverClient, mediaserverproto.NewActionClient, mediaserverproto.Action_ServiceDesc.ServiceName, conf.ClientDomain)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserveractioncontroller grpc client: %v", err)
 	}
