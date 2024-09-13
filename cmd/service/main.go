@@ -7,7 +7,7 @@ import (
 	"github.com/je4/certloader/v2/pkg/loader"
 	"github.com/je4/filesystem/v3/pkg/vfsrw"
 	"github.com/je4/mediaservermain/v2/config"
-	"github.com/je4/mediaservermain/v2/pkg/web"
+	"github.com/je4/mediaservermain/v2/pkg/rest"
 	mediaserverproto "github.com/je4/mediaserverproto/v2/pkg/mediaserver/proto"
 	"github.com/je4/miniresolver/v2/pkg/resolver"
 	configutil "github.com/je4/utils/v2/pkg/config"
@@ -140,7 +140,7 @@ func main() {
 	}
 	resolver.DoPing(actionControllerClient, logger)
 
-	ctrl, err := web.NewMainController(
+	ctrl, err := rest.NewMainController(
 		conf.LocalAddr,
 		conf.ExternalAddr,
 		webTLSConfig,

@@ -75,7 +75,7 @@ https://localhost:8761/test/10_3931_e-rara-117673_20230922T115950_master_ver1.zi
 ###  JP2
 https://localhost:8761/test/iiif_test_andromeda_small/convert/formatjp2/tile512x512/test.jp2
 
-###  JP2
+###  zoom
 https://localhost:8761/test/iiif_test_andromeda_small/iiifzoomviewer
 
 ###  JP2
