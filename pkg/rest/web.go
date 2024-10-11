@@ -287,6 +287,7 @@ func (ctrl *mainController) checkAccess(collection, signature, action, paramStr,
 
 	return nil
 }
+
 func (ctrl *mainController) iiifAction(c *gin.Context) {
 	action := "iiif"
 	version := c.Param("version")

@@ -23,17 +23,17 @@ type = "minivault"
 initialtimeout = "1h"
 [webtls.minivault]
 baseurl = "https://localhost:8759/api/v1"
-parenttoken = "pa.2dc3ab3f9484fb8f.1930147d1f59f54f"
+parenttoken = "pa.2dd5ab7291c4f687.8279505fe3baeac8"
 tokentype = "server_cert"
 tokenpolicies = ["ubmedia.mediaservermain"]
-tokeninterval = "1h"
-tokenttl = "2h"
+tokeninterval = "48h"
+tokenttl = "96h"
 certtype = "server_cert"
 dnss = ["localhost"]
 uris = []
 ips = ["127.0.0.1", "::1"]
-certinterval = "8m"
-certttl = "10m"
+certinterval = "24h"
+certttl = "48h"
 ca = ["certs/minivault.ca.pem"]
 usesystempool = false
 
@@ -42,17 +42,17 @@ type = "minivault"
 initialtimeout = "1h"
 [client.minivault]
 baseurl = "https://localhost:8759/api/v1"
-parenttoken = "pa.2dc3ab3f9484fb8f.1930147d1f59f54f"
+parenttoken = "pa.2dd5ab7291c4f687.8279505fe3baeac8"
 tokentype = "client_cert"
 tokenpolicies = ["ubmedia.mediaservermain"]
-tokeninterval = "1h"
-tokenttl = "2h"
+tokeninterval = "48h"
+tokenttl = "96h"
 certtype = "client_cert"
 dnss = []
 uris = ["grpc:ubmedia.mediaserverproto.Database", "grpc:mediathek.mediaserverproto.Database", "grpc:miniresolverproto.MiniResolver", "grpc:ubmedia.mediaserverproto.Action", "grpc:mediathek.mediaserverproto.Action"]
 ips = []
-certinterval = "8m"
-certttl = "10m"
+certinterval = "24h"
+certttl = "48h"
 ca = ["certs/minivault.ca.pem"]
 usesystempool = false
 
@@ -84,7 +84,7 @@ Endpoint = "s3-zh.lts.switch.ch"
 Region = "zurich"
 UseSSL = true
 Debug = false
-CAPEM = ""
+CAPEM = "ignore"
 BaseUrl = ""
 ZipAsFolderCache = 0
 
@@ -100,7 +100,7 @@ UseSSL = true
 Debug = false
 BaseUrl = ""
 ZipAsFolderCache = 0
-CAPEM = ""
+CAPEM = "ignore"
 
 [log]
 level = "debug"

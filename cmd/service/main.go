@@ -74,12 +74,15 @@ func main() {
 		defer loggerLoader.Close()
 	}
 
-	_logger, _logstash, _logfile := ublogger.CreateUbMultiLoggerTLS(conf.Log.Level, conf.Log.File,
+	_logger, _logstash, _logfile, err := ublogger.CreateUbMultiLoggerTLS(conf.Log.Level, conf.Log.File,
 		ublogger.SetDataset(conf.Log.Stash.Dataset),
 		ublogger.SetLogStash(conf.Log.Stash.LogstashHost, conf.Log.Stash.LogstashPort, conf.Log.Stash.Namespace, conf.Log.Stash.LogstashTraceLevel),
 		ublogger.SetTLS(conf.Log.Stash.TLS != nil),
 		ublogger.SetTLSConfig(loggerTLSConfig),
 	)
+	if err != nil {
+		log.Fatalf("cannot create logger: %v", err)
+	}
 	if _logstash != nil {
 		defer _logstash.Close()
 	}
@@ -87,11 +90,14 @@ func main() {
 		defer _logfile.Close()
 	}
 
+	// cfgStr, err := yaml.Marshal(conf)
+	//	_logger.Info().Msgf(string(cfgStr))
+
 	l2 := _logger.With().Timestamp().Str("host", hostname).Str("addr", conf.LocalAddr).Logger() //.Output(output)
 	var logger zLogger.ZLogger = &l2
 
-	l3 := _logger.With().Timestamp().Str("package", "vfsrw").Logger()
-	vfs, err := vfsrw.NewFS(conf.VFS, &l3)
+	//	l3 := _logger.With().Timestamp().Str("package", "vfsrw").Logger()
+	vfs, err := vfsrw.NewFS(conf.VFS, logger)
 	if err != nil {
 		logger.Panic().Err(err).Msg("cannot create vfs")
 	}
