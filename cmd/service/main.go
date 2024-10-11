@@ -134,13 +134,13 @@ func main() {
 	}
 	defer resolverClient.Close()
 
-	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, mediaserverproto.Database_ServiceDesc.ServiceName, conf.ClientDomain)
+	dbClient, err := resolver.NewClient[mediaserverproto.DatabaseClient](resolverClient, mediaserverproto.NewDatabaseClient, mediaserverproto.Database_ServiceDesc.ServiceName, conf.Domain)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserverdb grpc client: %v", err)
 	}
 	resolver.DoPing(dbClient, logger)
 
-	actionControllerClient, err := resolver.NewClient[mediaserverproto.ActionClient](resolverClient, mediaserverproto.NewActionClient, mediaserverproto.Action_ServiceDesc.ServiceName, conf.ClientDomain)
+	actionControllerClient, err := resolver.NewClient[mediaserverproto.ActionClient](resolverClient, mediaserverproto.NewActionClient, mediaserverproto.Action_ServiceDesc.ServiceName, conf.Domain)
 	if err != nil {
 		logger.Panic().Msgf("cannot create mediaserveractioncontroller grpc client: %v", err)
 	}

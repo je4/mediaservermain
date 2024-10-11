@@ -13,7 +13,7 @@ import (
 
 type MediaserverMainConfig struct {
 	LocalAddr               string                `toml:"localaddr"`
-	ClientDomain            string                `toml:"clientdomain"`
+	Domain                  string                `toml:"domain"`
 	ExternalAddr            string                `toml:"externaladdr"`
 	IIIF                    string                `toml:"iiif"`
 	IIIFPrefix              string                `toml:"iiifprefix"`

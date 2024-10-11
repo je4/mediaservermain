@@ -1,5 +1,5 @@
 localaddr = ":8761"
-clientdomain = "ubmedia"
+domain = "ubmedia"
 resolveraddr = "[::1]:7777"
 resolvertimeout = "10m"
 resolvernotfoundtimeout = "10s"

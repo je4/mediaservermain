@@ -6,5 +6,5 @@ import "embed"
 // go :embed videojs/video-js.min.css videojs/video.min.js
 
 //go:embed replayweb/js/sw.js replayweb/js/ui.js
-//go:embed foliate-js/*.js foliate-js/ui/*.js foliate-js/vendor/*.js
+//go:embed foliate-js/*.js foliate-js/ui/*.js foliate-js/vendor/*.js foliatereader/reader.js
 var FS embed.FS
